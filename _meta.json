@@ -1,0 +1,1 @@
+{"name": "taoguba-hot", "description": "抓取淘股吧点赞榜热门文章，获取A股市场散户情绪和热门话题", "entry": "scripts/tgb_spider.py", "author": "openclaw", "license": "MIT", "tags": ["stock", "a-share", "sentiment", "spider"]}
