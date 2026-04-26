@@ -12,6 +12,7 @@ metadata:
 
 ## 功能
 
+### 1. 热门文章抓取
 抓取淘股吧点赞榜（`https://www.tgb.cn/dianzan`）的热门文章，提取文章标题、作者和正文内容，用于：
 
 - 了解当前A股散户情绪
@@ -45,6 +46,42 @@ python3 scripts/tgb_spider.py \
 
 - `{out-dir}/corpus/{MM-DD}-tgb-corpus.txt` - 抓取到的文章正文汇总
 - `{out-dir}/corpus/{MM-DD}-tgb-list.txt` - 文章标题、作者和链接列表
+
+### 2. 股票股吧评论抓取
+抓取指定股票（如 `sz300750`、`sh600519`）的吧帖评论，用于分析该股票的 **散户情绪和舆情**。
+
+**技术原理：** 淘股吧是 SPA 页面，帖子数据直接嵌入在 HTML 页面的 JavaScript 变量 `coolAttr` 中，无需 AJAX 请求，直接正则解析即可。
+
+**使用示例：**
+```bash
+cd ~/.agents/skills/taoguba-hot
+python3 scripts/tgb_stock_comments.py \
+  --stock-code sz300750 \
+  --pages 3 \
+  --delay 0.5
+```
+
+**参数说明：**
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--stock-code` / `-s` | 必填 | 股票代码，如 `sz300750`、`sh600519` |
+| `--pages` / `-p` | 3 | 抓取页数（每页约20条） |
+| `--delay` / `-d` | 0.5 | 请求间隔（秒），请勿设太小 |
+| `--out-dir` / `-o` | `./data` | 输出目录 |
+
+**输出文件：**
+- `{stock_code}-posts-list-{date}.txt` - 帖子列表（标题/作者/时间/URL/统计数据）
+- `{stock_code}-posts-full-{date}.txt` - 帖子详情（含正文摘要）
+
+**示例：**
+```bash
+# 抓取贵州茅台股吧评论（3页）
+python3 scripts/tgb_stock_comments.py -s sh600519 -p 3 -d 0.5
+
+# 抓取比亚迪股吧评论（1页）
+python3 scripts/tgb_stock_comments.py -s sz002594 -p 1
+```
 
 ## 依赖安装
 
