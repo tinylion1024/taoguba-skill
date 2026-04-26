@@ -13,3 +13,9 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Dependency packages (pip install -t lib/)
+lib/
+
+# Log files
+*.log
