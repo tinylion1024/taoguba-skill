@@ -8,11 +8,12 @@ tgb_stock_comments.py
 
 技术方案：淘股吧是 SPA，帖子数据直接嵌入在 HTML 页面的
 JavaScript 变量 coolAttr 中，通过正则提取即可，无需 AJAX 请求。
+
+支持 SQLite 持久化（--save-db）和增量爬取（--incremental）。
 """
 import argparse
 import html
 import json
-import logging
 import re
 import sys
 import time
@@ -20,30 +21,12 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin
 
-import requests
-from bs4 import BeautifulSoup
-
-# ------------------------------------------------------------------
-# 日志配置
-# ------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('stock_comments.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+from common import (
+    setup_logging, logger, DB_PATH, DATA_DIR,
+    fetch, get_headers,
+    get_db, init_db,
+    update_crawl_log, get_last_crawl,
 )
-
-# ------------------------------------------------------------------
-# HTTP 头（模拟浏览器）
-# ------------------------------------------------------------------
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Referer": "https://www.tgb.cn/",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-}
 
 # ------------------------------------------------------------------
 # 核心：从 HTML 中提取 coolAttr JSON 数据
@@ -63,7 +46,7 @@ def extract_coolattr_from_html(html_content: str) -> list[dict]:
         match = re.search(pattern2, html_content, re.DOTALL)
 
     if not match:
-        logging.error("❌ 未找到 coolAttr 数据，页面结构可能已变更")
+        logger.error("未找到 coolAttr 数据，页面结构可能已变更")
         return []
 
     json_str = match.group(1)
@@ -71,7 +54,7 @@ def extract_coolattr_from_html(html_content: str) -> list[dict]:
         data = json.loads(json_str)
         return data
     except json.JSONDecodeError as e:
-        logging.error("❌ coolAttr JSON 解析失败: %s", e)
+        logger.error(f"coolAttr JSON 解析失败: {e}")
         return []
 
 
@@ -139,22 +122,21 @@ def fetch_stock_page(stock_code: str, page: int = 1, delay: float = 0.5) -> list
     stock_code: 如 sz300750
     page: 页码（第1页URL没有页码后缀）
     """
-    time.sleep(delay)
+    import time as _time
+    _time.sleep(delay)
     if page == 1:
         url = f"https://www.tgb.cn/quotes/{stock_code}"
     else:
         url = f"https://www.tgb.cn/quotes/{stock_code}/{page}"
 
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        resp.encoding = 'utf-8'
-    except requests.exceptions.RequestException as e:
-        logging.error("⏰ 请求失败 [%s]: %s", url, e)
+        html_content = fetch(url, headers=get_headers({"Referer": "https://www.tgb.cn/"}), timeout=15)
+    except Exception as e:
+        logger.error(f"Request failed [{url}]: {e}")
         return []
 
-    items = extract_coolattr_from_html(resp.text)
-    logging.info("✅ 第 %d/%d 页 [%s] → 获取 %d 条帖子", page, page, stock_code, len(items))
+    items = extract_coolattr_from_html(html_content)
+    logger.info(f"Page {page} [{stock_code}] → {len(items)} posts")
     return items
 
 
@@ -191,11 +173,40 @@ def format_post(post: dict, include_body: bool = True, body_limit: int = 300) ->
 # ------------------------------------------------------------------
 # 保存结果到文件
 # ------------------------------------------------------------------
-def save_results(posts: list[dict], stock_code: str, out_dir: str):
-    """将抓取结果保存到文件"""
+def save_results(posts: list[dict], stock_code: str, out_dir: str,
+                 save_db: bool = False, incremental: bool = False):
+    """将抓取结果保存到文件，可选 SQLite"""
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d")
+
+    new_posts = 0
+    if save_db:
+        init_db()
+        conn = get_db()
+        try:
+            for post in posts:
+                conn.execute("""
+                    INSERT INTO stock_comments
+                        (stock_code, author_name, author_bid, content, post_url, timestamp, likes)
+                    VALUES (:stock_code, :author, :user_id, :body, :url, :time, :likes)
+                    ON CONFLICT(id) DO UPDATE SET
+                        content=excluded.content, likes=excluded.likes
+                """, {
+                    'stock_code': stock_code,
+                    'author': post['author'],
+                    'user_id': post['user_id'],
+                    'body': post['body'],
+                    'url': post['url'],
+                    'time': post['time'],
+                    'likes': post['likes'],
+                })
+                new_posts += 1
+            update_crawl_log(conn, 'stock_comments', stock_code, len(posts))
+            conn.commit()
+            logger.info(f"Saved {len(posts)} comments to SQLite: {DB_PATH}")
+        finally:
+            conn.close()
 
     # ---------- 文件1：帖子列表（不含正文） ----------
     list_file = out_path / f"{stock_code}-posts-list-{date_str}.txt"
@@ -225,7 +236,7 @@ def save_results(posts: list[dict], stock_code: str, out_dir: str):
                 f.write(f"    点赞:{post['likes']}  评论:{post['comments']}  浏览:{post['views']}\n")
                 f.write(f"    {post['url']}\n\n")
 
-    logging.info("💾 列表已保存: %s", list_file)
+    logger.info("List saved: %s", list_file)
 
     # ---------- 文件2：帖子详情（含正文） ----------
     full_file = out_path / f"{stock_code}-posts-full-{date_str}.txt"
@@ -239,7 +250,7 @@ def save_results(posts: list[dict], stock_code: str, out_dir: str):
             f.write(f"【第 {i} 条】\n{formatted}\n")
             f.write("\n" + "=" * 60 + "\n\n")
 
-    logging.info("💾 详情已保存: %s", full_file)
+    logger.info(f"Detail saved: {full_file}")
     return list_file, full_file
 
 
@@ -272,40 +283,40 @@ def parse_args():
         default='./data',
         help='输出目录（默认 ./data）'
     )
+    parser.add_argument('--save-db', action='store_true',
+                        help='Save results to SQLite database')
+    parser.add_argument('--incremental', action='store_true',
+                        help='Only crawl posts newer than last crawl (requires --save-db)')
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    setup_logging()
     stock_code = args.stock_code.strip().lower()
 
     if not stock_code:
-        logging.error("❌ stock-code 不能为空")
+        logger.error("stock-code 不能为空")
         sys.exit(1)
 
-    # 基础URL用于验证
     test_url = f"https://www.tgb.cn/quotes/{stock_code}"
-    logging.info("🔍 开始抓取股票 [%s] 的讨论帖", stock_code)
-    logging.info("📍 目标页面: %s", test_url)
-    logging.info("📄 抓取页数: %d，请求间隔: %.1f秒", args.pages, args.delay)
+    logger.info(f"开始抓取股票 [{stock_code}] 的讨论帖")
+    logger.info(f"目标页面: {test_url}")
+    logger.info(f"抓取页数: {args.pages}, 请求间隔: {args.delay}s")
 
     # 抓取数据
     all_items = crawl_stock_comments(stock_code, args.pages, args.delay)
     if not all_items:
-        logging.error("❌ 未能获取到任何帖子，请检查股票代码是否正确（如 sz300750）")
+        logger.error("未能获取到任何帖子，请检查股票代码是否正确（如 sz300750）")
         sys.exit(1)
 
-    # 解析为结构化数据
     posts = [parse_post_item(item) for item in all_items]
     main_count = sum(1 for p in posts if not p['is_reply'])
     reply_count = sum(1 for p in posts if p['is_reply'])
-    logging.info("✅ 共获取 %d 条帖子（主帖 %d，跟帖 %d）", len(posts), main_count, reply_count)
+    logger.info(f"共获取 {len(posts)} 条帖子（主帖 {main_count}，跟帖 {reply_count}）")
 
-    # 保存文件
-    list_file, full_file = save_results(posts, stock_code, args.out_dir)
-    logging.info("🏁 完成！")
-    logging.info("   📋 帖子列表: %s", list_file)
-    logging.info("   📄 详情内容: %s", full_file)
+    save_results(posts, stock_code, args.out_dir, save_db=args.save_db, incremental=args.incremental)
+    logger.info("完成！")
 
 
 if __name__ == '__main__':
