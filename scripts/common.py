@@ -150,23 +150,54 @@ CREATE TABLE IF NOT EXISTS stock_comments (
     UNIQUE(stock_code, topic_id)
 );
 
+-- eastmoney_comments: 东方财富股吧评论表
+CREATE TABLE IF NOT EXISTS eastmoney_comments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    stock_code  TEXT NOT NULL,
+    post_id     TEXT UNIQUE,
+    title       TEXT,
+    author      TEXT,
+    publish_dt  TEXT,
+    views       INTEGER DEFAULT 0,
+    replies     INTEGER DEFAULT 0,
+    url         TEXT,
+    body        TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
 -- crawl_log: 爬取记录（增量爬取用）
 CREATE TABLE IF NOT EXISTS crawl_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    crawl_type  TEXT NOT NULL,       -- 'blog_posts', 'stock_comments'
-    target_id   TEXT NOT NULL,       -- bid 或 stock_code
+    crawl_type  TEXT NOT NULL,       -- 'blog_posts', 'stock_comments', 'hot_articles', 'eastmoney_comments'
+    target_id   TEXT NOT NULL,       -- bid 或 stock_code 或 'hot'
     last_crawl  TEXT NOT NULL,       -- 最后爬取时间
     records     INTEGER DEFAULT 0,    -- 本次抓取记录数
     status      TEXT DEFAULT 'success'
+);
+
+-- hot_articles: 热门文章表（点赞榜）
+CREATE TABLE IF NOT EXISTS hot_articles (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id  TEXT UNIQUE,       -- 文章唯一ID
+    title       TEXT,
+    author_name TEXT,
+    url         TEXT,
+    publish_dt  TEXT,              -- 发布时间（格式 MM-DD HH:MM）
+    s_dt        TEXT,              -- 爬取范围开始
+    e_dt        TEXT,              -- 爬取范围结束
+    body        TEXT,              -- 正文
+    created_at  TEXT DEFAULT (datetime('now'))
 );
 
 -- indexes
 CREATE INDEX IF NOT EXISTS idx_posts_bid        ON posts(bid);
 CREATE INDEX IF NOT EXISTS idx_posts_pubdate    ON posts(publish_date);
 CREATE INDEX IF NOT EXISTS idx_posts_fetched    ON posts(is_content_fetched);
-CREATE INDEX IF NOT EXISTS idx_crawl_target      ON crawl_log(crawl_type, target_id);
-CREATE INDEX IF NOT EXISTS idx_comments_stock    ON stock_comments(stock_code);
+CREATE INDEX IF NOT EXISTS idx_crawl_target     ON crawl_log(crawl_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_comments_stock   ON stock_comments(stock_code);
 CREATE INDEX IF NOT EXISTS idx_comments_topic   ON stock_comments(topic_id);
+CREATE INDEX IF NOT EXISTS idx_em_comments_stock ON eastmoney_comments(stock_code);
+CREATE INDEX IF NOT EXISTS idx_em_comments_post  ON eastmoney_comments(post_id);
 """
 
 
