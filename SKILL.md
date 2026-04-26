@@ -243,6 +243,20 @@ python scripts/tgb_eastmoney_comments.py \
   --pages 3 \
   --delay 0.5
 
+# 个人号（达人）抓取
+python scripts/tgb_eastmoney_comments.py \
+  --stock-code 300750 \
+  --pages 3 \
+  --author-type f \
+  --delay 0.5
+
+# 机构号抓取
+python scripts/tgb_eastmoney_comments.py \
+  --stock-code 300750 \
+  --pages 3 \
+  --author-type j \
+  --delay 0.5
+
 # 写入 SQLite + 增量爬取
 python scripts/tgb_eastmoney_comments.py \
   --stock-code 300750 \
@@ -261,12 +275,13 @@ python scripts/tgb_eastmoney_comments.py \
 | `--out-dir` | `-o` | `./data` | 输出目录 |
 | `--save-db` | - | False | 将结果写入 SQLite 数据库 |
 | `--incremental` | - | False | 仅爬取比上次更新的帖子（基于 post_id 去重） |
+| `--author-type` | `-a` | `""` | 作者类型过滤：`f`=个人号（达人），`j`=机构号，留空=全部 |
 
 ### 输出说明
 
 - `{stock_code}-eastmoney-list-{date}.txt` — 帖子列表（标题/作者/时间/URL/统计）
 - `{stock_code}-eastmoney-full-{date}.txt` — 帖子详情
-- SQLite：`data/tgb.db` → `eastmoney_comments` 表
+- SQLite：`data/tgb.db` → `eastmoney_comments` + `eastmoney_authors` 表
 
 ### SQLite 表结构
 
@@ -282,7 +297,19 @@ CREATE TABLE eastmoney_comments (
     replies     INTEGER DEFAULT 0,
     url         TEXT,
     body        TEXT,
+    post_type   TEXT DEFAULT '',       -- 'caifuhao'=财富号, 'guba'=股吧
+    author_id   TEXT DEFAULT '',       -- 作者ID（从 i.eastmoney.com URL 提取）
     created_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE eastmoney_authors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    author_id       TEXT UNIQUE,       -- 作者唯一ID（去重键）
+    author_name     TEXT,
+    author_type     TEXT,              -- 'personal'=个人号, 'institutional'=机构号
+    stock_code      TEXT DEFAULT '',
+    follower_count  INTEGER DEFAULT 0,
+    created_at      TEXT DEFAULT (datetime('now'))
 );
 ```
 

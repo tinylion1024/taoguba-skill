@@ -162,7 +162,20 @@ CREATE TABLE IF NOT EXISTS eastmoney_comments (
     replies     INTEGER DEFAULT 0,
     url         TEXT,
     body        TEXT,
+    post_type   TEXT DEFAULT '',
+    author_id   TEXT DEFAULT '',
     created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- eastmoney_authors: 东方财富股吧作者表（达人/大V）
+CREATE TABLE IF NOT EXISTS eastmoney_authors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    author_id       TEXT UNIQUE,
+    author_name     TEXT,
+    author_type     TEXT,
+    stock_code      TEXT DEFAULT '',
+    follower_count  INTEGER DEFAULT 0,
+    created_at      TEXT DEFAULT (datetime('now'))
 );
 
 -- crawl_log: 爬取记录（增量爬取用）
@@ -198,6 +211,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_stock   ON stock_comments(stock_code);
 CREATE INDEX IF NOT EXISTS idx_comments_topic   ON stock_comments(topic_id);
 CREATE INDEX IF NOT EXISTS idx_em_comments_stock ON eastmoney_comments(stock_code);
 CREATE INDEX IF NOT EXISTS idx_em_comments_post  ON eastmoney_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_em_authors_id      ON eastmoney_authors(author_id);
 """
 
 
@@ -214,9 +228,39 @@ def get_db(db_path: str = None) -> sqlite3.Connection:
 def init_db(db_path: str = None):
     """初始化数据库"""
     conn = get_db(db_path)
+    # 尝试 ALTER 现有表（处理旧数据库升级）
+    _migrate_schema(conn)
     conn.executescript(SCHEMA_SQL)
     conn.commit()
     conn.close()
+
+
+def _migrate_schema(conn: sqlite3.Connection):
+    """迁移旧数据库结构，添加新增字段"""
+    try:
+        # eastmoney_comments: 添加 post_type 和 author_id
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(eastmoney_comments)").fetchall()}
+        if "post_type" not in cols:
+            conn.execute("ALTER TABLE eastmoney_comments ADD COLUMN post_type TEXT DEFAULT ''")
+        if "author_id" not in cols:
+            conn.execute("ALTER TABLE eastmoney_comments ADD COLUMN author_id TEXT DEFAULT ''")
+        # 确保 eastmoney_authors 表存在（可能是旧DB完全没有此表）
+        tables = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "eastmoney_authors" not in tables:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS eastmoney_authors (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    author_id       TEXT UNIQUE,
+                    author_name     TEXT,
+                    author_type     TEXT,
+                    stock_code      TEXT DEFAULT '',
+                    follower_count  INTEGER DEFAULT 0,
+                    created_at      TEXT DEFAULT (datetime('now'))
+                )
+            """)
+        conn.commit()
+    except Exception:
+        pass  # 忽略迁移错误（首次创建数据库时无表结构）
 
 
 def dict_from_row(row: sqlite3.Row) -> dict:

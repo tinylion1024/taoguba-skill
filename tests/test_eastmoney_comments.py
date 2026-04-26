@@ -140,17 +140,33 @@ class TestParseListPage:
 # build_list_url tests
 # ----------------------------------------------------------------------
 class TestBuildListUrl:
-    def test_page_1(self):
+    def test_page_1_default(self):
         url = build_list_url("300750", 1)
+        assert url == "https://guba.eastmoney.com/list,300750,1.html"
+
+    def test_page_2_default(self):
+        url = build_list_url("300750", 2)
+        assert url == "https://guba.eastmoney.com/list,300750,2.html"
+
+    def test_arbitrary_page_default(self):
+        url = build_list_url("600519", 5)
+        assert url == "https://guba.eastmoney.com/list,600519,5.html"
+
+    def test_page_1_with_author_type_f(self):
+        url = build_list_url("300750", 1, "f")
         assert url == "https://guba.eastmoney.com/list,300750,1,f.html"
 
-    def test_page_2(self):
-        url = build_list_url("300750", 2)
+    def test_page_2_with_author_type_f(self):
+        url = build_list_url("300750", 2, "f")
         assert url == "https://guba.eastmoney.com/list,300750,2,f.html"
 
-    def test_arbitrary_page(self):
-        url = build_list_url("600519", 5)
+    def test_arbitrary_page_with_author_type_f(self):
+        url = build_list_url("600519", 5, "f")
         assert url == "https://guba.eastmoney.com/list,600519,5,f.html"
+
+    def test_page_1_with_author_type_j(self):
+        url = build_list_url("300750", 1, "j")
+        assert url == "https://guba.eastmoney.com/list,300750,1,j.html"
 
 
 # ----------------------------------------------------------------------

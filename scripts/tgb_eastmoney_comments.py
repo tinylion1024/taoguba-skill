@@ -47,6 +47,7 @@ def parse_list_page(html_content: str) -> list[dict]:
               <td><div class="reply">0</div></td>
               <td>
                 <div class="title">
+                  <a data-postid="1699428687" data-posttype="20" href="//i.eastmoney.com/5034093950183932">...</a>
                   <a data-postid="1699428687" href="/news,300750,1699428687.html">标题</a>
                 </div>
               </td>
@@ -55,7 +56,9 @@ def parse_list_page(html_content: str) -> list[dict]:
             </tr>
           </tbody>
         </table>
-    返回字段：views, replies, title, author, publish_dt, post_id, url
+    返回字段：views, replies, title, author, publish_dt, post_id, url, post_type, author_id
+        - post_type: "caifuhao" 如果 data-posttype="20"，否则 "guba" 或 ""
+        - author_id: 从 //i.eastmoney.com/{id} URL 提取的数字 ID
     """
     soup = BeautifulSoup(html_content, "lxml")
     items = []
@@ -86,11 +89,22 @@ def parse_list_page(html_content: str) -> list[dict]:
         # post_id 来自 data-postid 属性
         post_id = link_tag.get("data-postid", "")
 
+        # post_type: data-posttype="20" → 财富号帖子
+        data_posttype = link_tag.get("data-posttype", "")
+        post_type = "caifuhao" if data_posttype == "20" else "guba"
+
+        # author_id: 从 i.eastmoney.com URL 提取
+        href = link_tag.get("href", "") or ""
+        author_id = ""
+        if "//i.eastmoney.com/" in href:
+            match = re.search(r"//i\.eastmoney\.com/(\d+)", href)
+            if match:
+                author_id = match.group(1)
+
         # title 来自 a 标签的 title 属性（tooltip）
         title = link_tag.get("title", "") or link_tag.get_text(strip=True)
 
         # href 部分构建完整 URL
-        href = link_tag.get("href", "")
         if href.startswith("/"):
             url = f"https://guba.eastmoney.com{href}"
         else:
@@ -118,6 +132,8 @@ def parse_list_page(html_content: str) -> list[dict]:
                     "views": views,
                     "replies": replies,
                     "url": url,
+                    "post_type": post_type,
+                    "author_id": author_id,
                 }
             )
 
@@ -127,22 +143,34 @@ def parse_list_page(html_content: str) -> list[dict]:
 # ------------------------------------------------------------------
 # 分页 URL 构建
 # ------------------------------------------------------------------
-def build_list_url(stock_code: str, page: int) -> str:
-    """构建东方财富股吧列表页 URL"""
-    return f"https://guba.eastmoney.com/list,{stock_code},{page},f.html"
+def build_list_url(stock_code: str, page: int, author_type: str = "") -> str:
+    """构建东方财富股吧列表页 URL
+
+    Args:
+        stock_code: 股票代码，如 300750
+        page: 页码
+        author_type: 作者类型
+            - ""  : 默认（全部），如 list,code,99.html
+            - "f" : 个人号，如 list,code,99,f.html
+            - "j" : 机构号，如 list,code,99,j.html
+    """
+    if author_type:
+        return f"https://guba.eastmoney.com/list,{stock_code},{page},{author_type}.html"
+    return f"https://guba.eastmoney.com/list,{stock_code},{page}.html"
 
 
 # ------------------------------------------------------------------
 # 批量获取股票多页数据
 # ------------------------------------------------------------------
-def fetch_stock_page(stock_code: str, page: int = 1, delay: float = 0.5) -> list[dict]:
+def fetch_stock_page(stock_code: str, page: int = 1, delay: float = 0.5, author_type: str = "") -> list[dict]:
     """
     抓取指定股票的一页数据。
     stock_code: 如 300750（东方财富用纯数字代码，如 300750）
     page: 页码
+    author_type: "" 默认 / "f" 个人号 / "j" 机构号
     """
     time.sleep(delay)
-    url = build_list_url(stock_code, page)
+    url = build_list_url(stock_code, page, author_type)
 
     try:
         headers = get_headers({"Referer": "https://guba.eastmoney.com/"})
@@ -152,16 +180,18 @@ def fetch_stock_page(stock_code: str, page: int = 1, delay: float = 0.5) -> list
         return []
 
     items = parse_list_page(html_content)
-    logger.info(f"Page {page} [{stock_code}] → {len(items)} posts")
+    logger.info(f"Page {page} [{stock_code}] author_type={author_type!r} → {len(items)} posts")
     return items
 
 
-def crawl_stock_comments(stock_code: str, pages: int, delay: float, incremental: bool = False) -> list[dict]:
+def crawl_stock_comments(
+    stock_code: str, pages: int, delay: float, incremental: bool = False, author_type: str = ""
+) -> list[dict]:
     """抓取指定股票的多页评论数据"""
     all_posts = []
 
     for page in range(1, pages + 1):
-        items = fetch_stock_page(stock_code, page, delay)
+        items = fetch_stock_page(stock_code, page, delay, author_type)
 
         # 增量模式：基于 post_id 去重（post_id 在整个表中全局唯一）
         if incremental and items:
@@ -196,6 +226,10 @@ def format_post(post: dict, include_body: bool = False) -> str:
         f"[URL]  {post['url']}",
         f"[阅读 {post['views']}  评论 {post['replies']}]",
     ]
+    if post.get("post_type"):
+        lines.append(f"[帖子类型] {post['post_type']}")
+    if post.get("author_id"):
+        lines.append(f"[作者ID] {post['author_id']}")
     return "\n".join(lines)
 
 
@@ -208,6 +242,7 @@ def save_results(
     out_dir: str,
     save_db: bool = False,
     incremental: bool = False,
+    author_type: str = "",
 ):
     """将抓取结果保存到文件，可选 SQLite"""
     out_path = Path(out_dir)
@@ -223,15 +258,17 @@ def save_results(
                 conn.execute(
                     """
                     INSERT INTO eastmoney_comments
-                        (stock_code, post_id, title, author, publish_dt, views, replies, url)
-                    VALUES (:stock_code, :post_id, :title, :author, :publish_dt, :views, :replies, :url)
+                        (stock_code, post_id, title, author, publish_dt, views, replies, url, post_type, author_id)
+                    VALUES (:stock_code, :post_id, :title, :author, :publish_dt, :views, :replies, :url, :post_type, :author_id)
                     ON CONFLICT(post_id) DO UPDATE SET
                         title = excluded.title,
                         author = COALESCE(excluded.author, eastmoney_comments.author),
                         publish_dt = COALESCE(excluded.publish_dt, eastmoney_comments.publish_dt),
                         views = excluded.views,
                         replies = excluded.replies,
-                        url = excluded.url
+                        url = excluded.url,
+                        post_type = COALESCE(excluded.post_type, eastmoney_comments.post_type),
+                        author_id = COALESCE(excluded.author_id, eastmoney_comments.author_id)
                     """,
                     {
                         "stock_code": stock_code,
@@ -242,9 +279,32 @@ def save_results(
                         "views": post["views"],
                         "replies": post["replies"],
                         "url": post["url"],
+                        "post_type": post.get("post_type") or "",
+                        "author_id": post.get("author_id") or "",
                     },
                 )
                 new_posts += 1
+
+                # UPSERT 作者信息（如果存在 author_id）
+                author_id = post.get("author_id")
+                if author_id:
+                    mapped_author_type = "personal" if author_type == "f" else ("institutional" if author_type == "j" else "")
+                    conn.execute(
+                        """
+                        INSERT INTO eastmoney_authors (author_id, author_name, stock_code, author_type)
+                        VALUES (:author_id, :author_name, :stock_code, :author_type)
+                        ON CONFLICT(author_id) DO UPDATE SET
+                            author_name = COALESCE(excluded.author_name, eastmoney_authors.author_name),
+                            stock_code = COALESCE(excluded.stock_code, eastmoney_authors.stock_code),
+                            author_type = COALESCE(excluded.author_type, eastmoney_authors.author_type)
+                        """,
+                        {
+                            "author_id": author_id,
+                            "author_name": post.get("author") or "",
+                            "stock_code": stock_code,
+                            "author_type": mapped_author_type,
+                        },
+                    )
 
             update_crawl_log(conn, "eastmoney_comments", stock_code, new_posts)
             conn.commit()
@@ -301,6 +361,13 @@ def parse_args():
         action="store_true",
         help="Only crawl posts newer than last crawl (requires --save-db, uses post_id dedup)",
     )
+    parser.add_argument(
+        "--author-type",
+        "-a",
+        choices=["f", "j"],
+        default="",
+        help="作者类型过滤：f=个人号（达人），j=机构号，留空=全部",
+    )
     return parser.parse_args()
 
 
@@ -320,10 +387,10 @@ def main():
     test_url = build_list_url(numeric_code, 1)
     logger.info(f"开始抓取股票 [{stock_code}] 的东方财富股吧评论")
     logger.info(f"目标页面: {test_url}")
-    logger.info(f"抓取页数: {args.pages}, 请求间隔: {args.delay}s")
+    logger.info(f"抓取页数: {args.pages}, 请求间隔: {args.delay}s, 作者类型: {args.author_type!r}")
 
     # 抓取数据
-    all_items = crawl_stock_comments(numeric_code, args.pages, args.delay, incremental=args.incremental)
+    all_items = crawl_stock_comments(numeric_code, args.pages, args.delay, incremental=args.incremental, author_type=args.author_type)
     if not all_items:
         logger.error("未能获取到任何帖子，请检查股票代码是否正确（如 300750）")
         sys.exit(1)
@@ -336,6 +403,7 @@ def main():
         args.out_dir,
         save_db=args.save_db,
         incremental=args.incremental,
+        author_type=args.author_type,
     )
     logger.info("完成！")
 
