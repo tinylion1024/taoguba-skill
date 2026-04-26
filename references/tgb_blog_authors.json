@@ -1,0 +1,104 @@
+{
+  "_comment": "淘股吧(tgb.cn)大V博主Blog地址映射表",
+  "_sources": [
+    "https://www.tgb.cn/ (首页本周上升达人 + 潜伏达人)",
+    "https://www.tgb.cn/rank (达人排行榜)"
+  ],
+  "authors": {
+    "5894557": {
+      "name": "延边刺客",
+      "blog_url": "https://www.tgb.cn/blog/5894557",
+      "source": "首页本周上升达人"
+    },
+    "7737030": {
+      "name": "jl韭菜抄家",
+      "blog_url": "https://www.tgb.cn/blog/7737030",
+      "source": "首页本周上升达人"
+    },
+    "13145799": {
+      "name": "橘子洲炒家实战",
+      "blog_url": "https://www.tgb.cn/blog/13145799",
+      "source": "首页本周上升达人"
+    },
+    "9259508": {
+      "name": "小土堆爆金币",
+      "blog_url": "https://www.tgb.cn/blog/9259508",
+      "source": "首页本周上升达人"
+    },
+    "11668853": {
+      "name": "玫瑰超短",
+      "blog_url": "https://www.tgb.cn/blog/11668853",
+      "source": "首页本周上升达人"
+    },
+    "13126346": {
+      "name": "作手阿意",
+      "blog_url": "https://www.tgb.cn/blog/13126346",
+      "source": "首页本周上升达人"
+    },
+    "13186975": {
+      "name": "主升龙头空空龙",
+      "blog_url": "https://www.tgb.cn/blog/13186975",
+      "source": "首页本周上升达人 + 达人排行榜"
+    },
+    "11808691": {
+      "name": "大曾子",
+      "blog_url": "https://www.tgb.cn/blog/11808691",
+      "source": "首页本周上升达人 + 达人排行榜"
+    },
+    "8423616": {
+      "name": "短狙作手",
+      "blog_url": "https://www.tgb.cn/blog/8423616",
+      "source": "首页本周上升达人"
+    },
+    "6136655": {
+      "name": "89小墨客",
+      "blog_url": "https://www.tgb.cn/blog/6136655",
+      "source": "首页本周上升达人 + 达人排行榜"
+    },
+    "4223": {
+      "name": "职业炒手",
+      "blog_url": "https://www.tgb.cn/blog/4223",
+      "source": "达人排行榜"
+    },
+    "252069": {
+      "name": "柏拉爱空",
+      "blog_url": "https://www.tgb.cn/blog/252069",
+      "source": "达人排行榜"
+    },
+    "134434": {
+      "name": "炒股养家",
+      "blog_url": "https://www.tgb.cn/blog/134434",
+      "source": "达人排行榜"
+    },
+    "154034": {
+      "name": "赵老哥",
+      "blog_url": "https://www.tgb.cn/blog/154034",
+      "source": "达人排行榜"
+    },
+    "827264": {
+      "name": "作手新一",
+      "blog_url": "https://www.tgb.cn/blog/827264",
+      "source": "达人排行榜"
+    },
+    "138280": {
+      "name": "十万起家",
+      "blog_url": "https://www.tgb.cn/blog/138280",
+      "source": "达人排行榜"
+    },
+    "103830": {
+      "name": "龙飞虎",
+      "blog_url": "https://www.tgb.cn/blog/103830",
+      "source": "达人排行榜"
+    },
+    "7044222": {
+      "name": "麦亚糖",
+      "blog_url": "https://www.tgb.cn/blog/7044222",
+      "source": "用户指定"
+    },
+    "7105646": {
+      "name": "朱雀路作手",
+      "blog_url": "https://www.tgb.cn/blog/7105646",
+      "source": "用户指定"
+    }
+  }
+}
