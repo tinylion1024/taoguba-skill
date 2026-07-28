@@ -1,6 +1,6 @@
 ---
 name: taoguba-hot
-description: 抓取淘股吧点赞榜热门文章，获取A股市场散户情绪和热门话题。支持按时间范围抓取，自动提取文章正文汇总。支持 SQLite 持久化和增量爬取。
+description: 使用 Rust CLI 抓取淘股吧点赞榜、单篇文章和大V博客，获取A股市场散户情绪与热门话题。支持正文解析、SQLite 运行审计、断点续抓和 JSONL/CSV/Markdown 导出；Python 脚本保留用于股票评论等兼容流程。
 metadata:
   openclaw:
     emoji: "🔥"
@@ -10,9 +10,48 @@ metadata:
 
 # 淘股吧热门文章抓取 Skill
 
+## 首选入口：Rust CLI
+
+先在 skill 目录构建：
+
+```bash
+cargo build --release --manifest-path tgb-cli/Cargo.toml
+```
+
+使用 `tgb-cli/target/release/tgb` 执行文章采集：
+
+```bash
+# 热门榜和正文
+tgb-cli/target/release/tgb hot \
+  --from "2026-07-25 00:00" \
+  --to "2026-07-27 23:59" \
+  --pages 5 \
+  --fetch-body
+
+# 单个大V博客
+tgb-cli/target/release/tgb author 134434 --pages 3 --fetch-body --resume
+
+# 116 位大V中明确标记为精华或置顶的文章
+tgb-cli/target/release/tgb vip --pages 2 --fetch-body --resume
+
+# 导出某次采集结果，供情绪分析
+tgb-cli/target/release/tgb export \
+  --run 1 \
+  --only-success \
+  --format jsonl \
+  --output data/run-1.jsonl
+```
+
+默认使用 `data/tgb.db`。需要保留原始页面时，在采集子命令后加
+`--raw-dir data/raw`。查看采集完整度与失败明细时使用 `tgb run list`
+和 `tgb run show <run-id>`。
+
+热门榜时间应优先使用带年份的 `YYYY-MM-DD HH:MM`；兼容输入
+`MM-DD HH:MM`，CLI 会结合查询区间解析年份。
+
 ## 功能总览
 
-本 skill 包含四个爬虫脚本：
+Rust CLI 是文章采集的主入口；下列 Python 脚本用于兼容旧流程和评论抓取：
 
 | 脚本 | 功能 | 数据来源 |
 |------|------|----------|

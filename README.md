@@ -2,8 +2,89 @@
 
 > 淘股吧(tgb.cn) 爬虫工具集 — A股散户情绪分析数据采集
 
+[![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+## Rust CLI
+
+独立 Rust 工程位于 [`tgb-cli/`](tgb-cli/README.md)。`tgb` 是文章采集的主入口，覆盖热门榜、单篇文章、大V博客、大V精选、运行审计和结构化导出。原有 Python 脚本继续保留，用于股票评论和兼容旧流程。
+
+### 安装
+
+需要 Rust 1.85 或更高版本：
+
+```bash
+cargo install --path tgb-cli
+tgb --help
+```
+
+不安装也可以直接使用：
+
+```bash
+cargo run --manifest-path tgb-cli/Cargo.toml -- --help
+```
+
+### 常用命令
+
+```bash
+# 抓取指定时间段的热门文章及正文
+tgb hot \
+  --from "2026-07-25 00:00" \
+  --to "2026-07-27 23:59" \
+  --pages 5 \
+  --fetch-body
+
+# 抓取单篇文章；参数可以是文章 ID 或完整 URL
+tgb article 2rjdXpk0pCK
+
+# 抓取指定大V的博客文章
+tgb author 134434 --pages 3 --fetch-body --resume
+
+# 批量抓取配置文件中带“精华/置顶”标记的文章
+tgb vip --pages 2 --fetch-body --resume
+
+# 如果页面没有精选标记，可显式允许每位作者取前 3 篇作为候选
+tgb vip --fallback-top 3 --fetch-body
+
+# 查看运行记录和失败明细
+tgb run list
+tgb run show 1
+
+# 导出某次运行中正文解析成功的文章
+tgb export --run 1 --only-success --format jsonl --output data/run-1.jsonl
+```
+
+全局参数必须放在子命令之前，例如：
+
+```bash
+tgb \
+  --database data/research.db \
+  --delay-ms 1500 \
+  --max-attempts 4 \
+  hot --from "2026-07-25 00:00" --to "2026-07-27 23:59"
+```
+
+### 数据与可靠性
+
+- 默认数据库为 `data/tgb.db`，Rust 表统一使用 `tgb_` 前缀，不覆盖旧 Python 表。
+- 每次采集都会创建一条 `tgb_crawl_runs` 记录，保存请求页数、发现数、正文成功数和错误数。
+- 正文只接受已知内容容器，不使用“最大 div”之类容易混入导航、评论和推荐区的兜底规则。
+- 时间统一保存为带时区的 RFC 3339；`MM-DD HH:MM` 会根据查询区间解析年份，支持跨年区间。
+- `--raw-dir data/raw` 可保存原始 HTML，便于页面结构变化后离线复查。
+- HTTP 请求有全局限速、超时和瞬时错误重试；请保持克制的抓取频率。
+- 导出支持 `jsonl`、`csv`、`markdown` 和 `text`。JSONL 每行是一篇完整文章，适合后续情绪分析和 LLM 处理。
+
+主要数据表：
+
+| 表 | 用途 |
+|---|---|
+| `tgb_articles` | 去重后的统一文章及正文 |
+| `tgb_article_sources` | 文章与采集运行、来源、排名的关系 |
+| `tgb_crawl_runs` | 每次命令的参数、状态和统计 |
+| `tgb_crawl_errors` | 分阶段错误和 HTTP 状态 |
+
+## Python 兼容脚本
 
 ## 📈 功能一览
 
@@ -80,7 +161,7 @@ python scripts/analyze_vip_posts.py \
 
 ---
 
-## 🚀 快速开始
+## 🚀 Python 快速开始
 
 ### 安装依赖
 
