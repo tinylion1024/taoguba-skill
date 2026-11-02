@@ -48,6 +48,13 @@ def clean_title(title: str) -> str:
     return title.replace("\xa0", " ")
 
 
+def in_time_range(dt: str, s_dt: str, e_dt: str) -> bool:
+    """按 MM-DD HH:MM 判断 dt 是否在区间内；s_dt 晚于 e_dt 时视为跨年（如 12-31 到 01-01）"""
+    if s_dt <= e_dt:
+        return s_dt <= dt <= e_dt
+    return dt >= s_dt or dt <= e_dt
+
+
 def get_article_infos(base_url: str, s_dt: str, e_dt: str, search_page: int, delay: float = 0.5):
     """
     从列表页抓取文章信息（仅列表，不含正文）。
@@ -84,7 +91,7 @@ def get_article_infos(base_url: str, s_dt: str, e_dt: str, search_page: int, del
                     strip=True
                 )
 
-                if not (s_dt <= dt <= e_dt):
+                if not in_time_range(dt, s_dt, e_dt):
                     continue
 
                 # 提取 article_id（URL 形如 /a/xxxx）

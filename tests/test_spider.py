@@ -121,6 +121,24 @@ class TestGetArticleInfos:
         assert infos[0]["title"] == "《11月2日 盘前早报 周期&人气》"
 
     @patch("tgb_spider.fetch")
+    def test_date_range_across_new_year(self, mock_fetch):
+        """开始时间晚于结束时间（如 12-31 到 01-01）按跨年处理"""
+        html = self._make_html(
+            "".join(
+                '<div class="Nbbs-tiezi-lists">'
+                f'<div class="left middle-list-post">{dt}</div>'
+                f'<a href="/a/{aid}" title="{aid}">{aid}</a>'
+                '<div class="left middle-list-user cblue cursor overhide">作者</div>'
+                "</div>"
+                for dt, aid in [("12-30 10:00", "old"), ("12-31 23:50", "eve"), ("01-01 00:10", "ny"), ("01-02 09:00", "late")]
+            )
+        )
+        mock_fetch.return_value = html
+
+        infos = get_article_infos("https://www.tgb.cn/dianzan", "12-31 00:00", "01-01 23:59", 1, delay=0)
+        assert [info["article_id"] for info in infos] == ["eve", "ny"]
+
+    @patch("tgb_spider.fetch")
     def test_handles_fetch_failure_gracefully(self, mock_fetch):
         """fetch 抛异常时该页被跳过，不影响其他页"""
         def side_effect(url, **kwargs):
