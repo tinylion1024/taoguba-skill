@@ -106,6 +106,21 @@ class TestGetArticleInfos:
         assert infos[0]["article_id"] == "good1"
 
     @patch("tgb_spider.fetch")
+    def test_unescapes_title_entities(self, mock_fetch):
+        """列表页 title 属性是重复转义的，如 &amp;nbsp; 和 &amp;amp;amp;"""
+        html = self._make_html(
+            '<div class="Nbbs-tiezi-lists">'
+            '<div class="left middle-list-post">04-25 10:00</div>'
+            '<a href="/a/ent1" title="11月2日&amp;nbsp;盘前早报 周期&amp;amp;amp;人气">x</a>'
+            '<div class="left middle-list-user cblue cursor overhide">作者</div>'
+            "</div>"
+        )
+        mock_fetch.return_value = html
+
+        infos = get_article_infos("https://www.tgb.cn/dianzan", "04-25 00:00", "04-26 00:00", 1, delay=0)
+        assert infos[0]["title"] == "《11月2日 盘前早报 周期&人气》"
+
+    @patch("tgb_spider.fetch")
     def test_handles_fetch_failure_gracefully(self, mock_fetch):
         """fetch 抛异常时该页被跳过，不影响其他页"""
         def side_effect(url, **kwargs):

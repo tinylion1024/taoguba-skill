@@ -16,6 +16,7 @@ import argparse
 import re
 import time
 from datetime import datetime
+from html import unescape
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -36,6 +37,16 @@ from common import (
 # ---------------------------------------------------------------------------
 # HTML 解析
 # ---------------------------------------------------------------------------
+
+def clean_title(title: str) -> str:
+    """列表页 title 属性里的实体被重复转义过（如 &amp;nbsp;），反复反转义直到不再变化"""
+    for _ in range(5):
+        unescaped = unescape(title)
+        if unescaped == title:
+            break
+        title = unescaped
+    return title.replace("\xa0", " ")
+
 
 def get_article_infos(base_url: str, s_dt: str, e_dt: str, search_page: int, delay: float = 0.5):
     """
@@ -68,7 +79,7 @@ def get_article_infos(base_url: str, s_dt: str, e_dt: str, search_page: int, del
             try:
                 dt = div.find("div", class_="left middle-list-post").get_text(strip=True)
                 href = div.find("a")["href"]
-                title = div.find("a")["title"]
+                title = clean_title(div.find("a")["title"])
                 author = div.find("div", class_="left middle-list-user cblue cursor overhide").get_text(
                     strip=True
                 )
